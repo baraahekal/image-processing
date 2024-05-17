@@ -6,6 +6,7 @@ import (
 	"image/color"
 	_ "image/color"
 	_ "image/jpeg" // or "image/png" depending on your image type
+	"math"
 	"math/rand"
 	_ "os"
 	"sort"
@@ -238,9 +239,63 @@ func apply_laplacian_filter(img image.Image) image.Image {
 	return newImg
 }
 
-func apply_unsharp_masking_filter(img image.Image) image.Image {
-	// Implement the filter
-	return img
+func apply_unsharp_mask_filter(img image.Image) image.Image {
+	// Convert the image to grayscale
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	grayImg := image.NewGray(bounds)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			gray := color.GrayModel.Convert(img.At(x, y)).(color.Gray)
+			grayImg.Set(x, y, gray)
+		}
+	}
+
+	// Blur the image using a simple box blur
+	blurredImg := image.NewGray(bounds)
+	for y := 1; y < height-1; y++ {
+		for x := 1; x < width-1; x++ {
+			var sum uint32
+			for dy := -1; dy <= 1; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					gray := grayImg.GrayAt(x+dx, y+dy)
+					sum += uint32(gray.Y)
+				}
+			}
+			blurredImg.Set(x, y, color.Gray{Y: uint8(sum / 9)})
+		}
+	}
+
+	// Create the mask by subtracting the blurred image from the original image
+	mask := image.NewGray(bounds)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			gray := grayImg.GrayAt(x, y)
+			blur := blurredImg.GrayAt(x, y)
+			mask.Set(x, y, color.Gray{Y: uint8(math.Abs(float64(gray.Y) - float64(blur.Y)))})
+		}
+	}
+
+	// Amplify the mask
+	amplifiedMask := image.NewGray(bounds)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			gray := mask.GrayAt(x, y)
+			amplifiedMask.Set(x, y, color.Gray{Y: uint8(float64(gray.Y) * 3)})
+		}
+	}
+
+	// Add the amplified mask to the original image
+	unsharpImg := image.NewGray(bounds)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			gray := grayImg.GrayAt(x, y)
+			mask := amplifiedMask.GrayAt(x, y)
+			unsharpImg.Set(x, y, color.Gray{Y: uint8(math.Min(float64(gray.Y)+float64(mask.Y), 255))})
+		}
+	}
+
+	return unsharpImg
 }
 
 func apply_roberts_filter(img image.Image) image.Image {
