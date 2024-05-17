@@ -19,7 +19,15 @@ func main() {
 	fmt.Println("Server listening on port 8080")
 	http.ListenAndServe(":8080", nil)
 }
-
+func clamp(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
 func imageHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
