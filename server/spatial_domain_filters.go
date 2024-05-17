@@ -295,8 +295,35 @@ func apply_unsharp_mask_filter(img image.Image) image.Image {
 }
 
 func apply_roberts_filter(img image.Image) image.Image {
-	// Implement the filter
-	return img
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	newImg := image.NewRGBA(bounds)
+
+	//	 x= {1, 0},  y= {0, 1},
+	//	    {0,-1},     {-1, 0},
+
+	for y := 0; y < height-1; y++ {
+		for x := 0; x < width-1; x++ {
+			r1, g1, b1, _ := img.At(x, y).RGBA()
+			r2, g2, b2, _ := img.At(x+1, y+1).RGBA()
+			r3, g3, b3, _ := img.At(x+1, y).RGBA()
+			r4, g4, b4, _ := img.At(x, y+1).RGBA()
+
+			gxR := r1 - r2
+			gyR := r3 - r4
+			gxG := g1 - g2
+			gyG := g3 - g4
+			gxB := b1 - b2
+			gyB := b3 - b4
+
+			//Euclidan distance forumla
+			magnitudeR := uint8(math.Sqrt(float64((gxR*gxR)+(gyR*gyR))) / 256)
+			magnitudeG := uint8(math.Sqrt(float64((gxG*gxG)+(gyG*gyG))) / 256)
+			magnitudeB := uint8(math.Sqrt(float64((gxB*gxB)+(gyB*gyB))) / 256)
+			newImg.Set(x, y, color.RGBA{magnitudeR, magnitudeG, magnitudeB, 255})
+		}
+	}
+	return newImg
 }
 
 func apply_sobel_filter(img image.Image) image.Image {
@@ -326,7 +353,7 @@ func apply_sobel_filter(img image.Image) image.Image {
 			var sumR, sumG, sumB, sumA float64
 			for ky := 0; ky < kernelHeight; ky++ {
 				for kx := 0; kx < kernelWidth; kx++ {
-					r, g, b, a := img.At(x+w-kx, y+h-ky).RGBA()
+					r, g, b, a := img.At(x-w+kx, y-h+ky).RGBA()
 					sumR += float64(r) * kernel[ky][kx]
 					sumG += float64(g) * kernel[ky][kx]
 					sumB += float64(b) * kernel[ky][kx]
@@ -370,10 +397,40 @@ func apply_salt_pepper_filter(img image.Image) image.Image {
 }
 
 func apply_gaussian_noise_filter(img image.Image) image.Image {
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	newImg := image.NewRGBA(bounds)
 
-	return img
+	mean := 0.0
+	stdDev := 25.0 // Adjust as needed
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+
+			r8 := float64(r >> 8)
+			g8 := float64(g >> 8)
+			b8 := float64(b >> 8)
+
+			noisyR := addGaussianNoise(r8, mean, stdDev)
+			noisyG := addGaussianNoise(g8, mean, stdDev)
+			noisyB := addGaussianNoise(b8, mean, stdDev)
+
+			noisyR = clamp(noisyR, 0, 255)
+			noisyG = clamp(noisyG, 0, 255)
+			noisyB = clamp(noisyB, 0, 255)
+
+			newImg.Set(x, y, color.RGBA{uint8(noisyR), uint8(noisyG), uint8(noisyB), 255})
+		}
+	}
+
+	return newImg
 }
 
+func addGaussianNoise(value, mean, stdDev float64) float64 {
+	noise := rand.NormFloat64()*stdDev + mean
+	return value + noise
+}
 func apply_uniform_noise_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
