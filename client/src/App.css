@@ -1,9 +1,25 @@
 .App {
   text-align: center;
-  background-color: #122a35;
+  background-color: #1f2937
 
 }
 
+.p-stepper-panels {
+  background-color: #26454d;
+  border-radius: 5px;
+}
+
+.p-stepper-title {
+  display: none;
+}
+
+
+#pr_id_2_1_header_action{
+  background-color: rgba(18, 42, 53, 0);
+}
+#pr_id_2_0_header_action{
+  background-color: rgba(18, 42, 53, 0);
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {
@@ -24,10 +40,6 @@
   justify-content: center;
   font-size: calc(10px + 2vmin);
   color: white;
-}
-
-.App-link {
-  color: #61dafb;
 }
 
 @keyframes App-logo-spin {

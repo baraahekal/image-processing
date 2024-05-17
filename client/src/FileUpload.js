@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { FileUpload } from 'primereact/fileupload';
 import { Toast } from 'primereact/toast';
-import "primereact/resources/themes/lara-light-cyan/theme.css";
+import "primereact/resources/themes/lara-dark-teal/theme.css";
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import Stepper from './Stepper';
@@ -10,7 +10,7 @@ function Upload({ selectedFilter }) {
     const [originalImage, setOriginalImage] = useState(null);
     const [editedImage, setEditedImage] = useState(null);
     const [file, setFile] = useState(null); // state to store the file
-    const [step, setStep] = useState(0); // state to store the current step
+    let [step, setStep] = useState(0); // state to store the current step
     const toast = useRef(null);
 
     const onUpload = () => {
@@ -21,8 +21,15 @@ function Upload({ selectedFilter }) {
         // Display the original image
         setOriginalImage(URL.createObjectURL(files.files[0]));
 
+        // Reset the step
+        if (step > 0) {
+        setStep(step - 1);
+
+        }
+
         // Save the file locally
         setFile(files.files[0]);
+
     };
 
     const onSubmitHandler = async () => {
@@ -57,15 +64,14 @@ function Upload({ selectedFilter }) {
                 const image = await response.blob();
                 setEditedImage(URL.createObjectURL(image));
                 onUpload();
-                nextStep(); // Move to the next step
+                console.log(step);
+                // Move to the next step in the stepper
+                setStep(step + 1);
+                console.log(step);
             } catch (error) {
                 console.error('There was a problem with the fetch operation: ' + error.message);
             }
         };
-    };
-
-    const nextStep = () => {
-        setStep(step + 1);
     };
 
     return (
