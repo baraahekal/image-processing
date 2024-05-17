@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
+	"os"
 )
 
 /*
@@ -30,6 +32,20 @@ func applyNearestNeighborFilter(img image.Image) image.Image {
 		}
 	}
 	return outputImg
+}
+func readImage(filePath string) (image.Image, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return img, nil
 }
 
 /*
@@ -221,6 +237,88 @@ func histeqChannel(img *image.RGBA, channelIndex int) *image.Gray {
 	}
 	return equalized
 }
+func splitChannels(img image.Image) (r, g, b *image.Gray) {
+	bounds := img.Bounds()
+	r = image.NewGray(bounds)
+	g = image.NewGray(bounds)
+	b = image.NewGray(bounds)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			col := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
+			r.Set(x, y, color.Gray{Y: col.R})
+			g.Set(x, y, color.Gray{Y: col.G})
+			b.Set(x, y, color.Gray{Y: col.B})
+		}
+	}
+
+	return r, g, b
+}
+
+// cumulativeDistribution calculates the CDF of a grayscale image
+func cumulativeDistribution(img *image.Gray) ([]float64, []int) {
+	hist := make([]int, 256)
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			hist[img.GrayAt(x, y).Y]++
+		}
+	}
+
+	cdf := make([]float64, 256)
+	cumulativeSum := 0
+	totalPixels := float64(bounds.Dx() * bounds.Dy())
+	for i := 0; i < 256; i++ {
+		cumulativeSum += hist[i]
+		cdf[i] = float64(cumulativeSum) / totalPixels
+	}
+
+	return cdf, hist
+}
+
+// adjustCDF adjusts the CDF by inserting zeros and ones as needed
+func adjustCDF(cdf []float64, hist []int) []float64 {
+	adjustedCDF := make([]float64, 256)
+	for i := 0; i < hist[0]; i++ {
+		adjustedCDF[i] = 0
+	}
+	copy(adjustedCDF[hist[0]:], cdf)
+	for i := len(cdf); i < 256; i++ {
+		adjustedCDF[i] = 1
+	}
+	return adjustedCDF
+}
+
+// histogramMatching performs histogram matching on the input image using the template CDF
+func histogramMatching(img, template *image.Gray) *image.Gray {
+	cdfInput, binsInput := cumulativeDistribution(img)
+	cdfTemplate, binsTemplate := cumulativeDistribution(template)
+
+	cdfInput = adjustCDF(cdfInput, binsInput)
+	cdfTemplate = adjustCDF(cdfTemplate, binsTemplate)
+
+	bounds := img.Bounds()
+	resultImg := image.NewGray(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			originalPixel := img.GrayAt(x, y).Y
+			newPixel := uint8(math.Round(interp(cdfInput[originalPixel], cdfTemplate) * 255))
+			resultImg.SetGray(x, y, color.Gray{Y: newPixel})
+		}
+	}
+	return resultImg
+}
+
+// interp performs linear interpolation
+func interp(value float64, cdfTemplate []float64) float64 {
+	for i := 0; i < len(cdfTemplate)-1; i++ {
+		if value <= cdfTemplate[i+1] {
+			t := (value - cdfTemplate[i]) / (cdfTemplate[i+1] - cdfTemplate[i])
+			return float64(i) + t
+		}
+	}
+	return float64(len(cdfTemplate) - 1)
+}
 func apply_histogram_equalization_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	rgba := image.NewRGBA(bounds)
@@ -269,41 +367,39 @@ func calculateCDF(histogram [256]uint64) [256]uint64 {
 	return cdf
 }
 func apply_histogram_specification_filter(img image.Image) image.Image {
-	inputGray := image.NewGray(img.Bounds())
-	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
-		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
-			r, _, _, _ := img.At(x, y).RGBA()
-			pixelValue := uint8(r >> 8)
-			inputGray.SetGray(x, y, color.Gray{pixelValue})
-		}
+	templatePath := "asset/Sunset.jpeg"
+	templateImg, err := readImage(templatePath)
+	if err != nil {
+		fmt.Println("Error reading template image:", err)
+		return nil
 	}
-	referenceGray := image.NewGray(img.Bounds())
-	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
-		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
-			r, _, _, _ := img.At(x, y).RGBA()
-			pixelValue := uint8(r >> 8)
-			referenceGray.SetGray(x, y, color.Gray{pixelValue})
-		}
-	}
-	//referenceHistogram := calculateHistogram(referenceGray)
 	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	imageHistogram := calculateHistogram(inputGray)
-	imageCDF := calculateCDF(imageHistogram)
-	//referenceCDF := calculateCDF(referenceHistogram)
-	mapping := [256]uint8{}
-	for i := 0; i < 256; i++ {
-		mapping[i] = uint8((255 * (imageCDF[i] - imageCDF[0])) / (imageCDF[255] - imageCDF[0]))
-	}
-	outputImg := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			r, _, _, a := img.At(x, y).RGBA()
-			pixelValue := mapping[int(r>>8)]
-			outputImg.Set(x, y, color.RGBA{pixelValue, pixelValue, pixelValue, uint8(a >> 8)})
+	newImg := image.NewRGBA(bounds)
+	// Split the input and template images into R, G, B channels
+	print("انا عديت ")
+	inputR, inputG, inputB := splitChannels(img)
+	templateR, templateG, templateB := splitChannels(templateImg)
+	print("انا عديت السبليت")
+	// Perform histogram matching for each channel
+	outputR := histogramMatching(inputR, templateR)
+	outputG := histogramMatching(inputG, templateG)
+	outputB := histogramMatching(inputB, templateB)
+	print("انا عديت الماتش")
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r := outputR.GrayAt(x, y).Y
+			g := outputG.GrayAt(x, y).Y
+			b := outputB.GrayAt(x, y).Y
+			newImg.Set(x, y, color.RGBA{
+				R: r,
+				G: g,
+				B: b,
+				A: 255,
+			})
 		}
 	}
-	return outputImg
+	print("انا عديت مش عارف")
+	return newImg
 }
 func apply_fourier_transform_filter(img image.Image) image.Image {
 	// Implement the filter
