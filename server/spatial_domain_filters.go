@@ -24,7 +24,6 @@ func apply_median_filter(img image.Image) image.Image {
 	return newImg
 	return img
 }
-
 func apply_min_filter(img image.Image) image.Image {
 	// Implement the filter
 	return img
@@ -66,7 +65,7 @@ func apply_sobel_filter(img image.Image) image.Image {
 }
 
 func apply_salt_pepper_filter(img image.Image) image.Image {
-	// Implement the filter
+
 	return img
 }
 
