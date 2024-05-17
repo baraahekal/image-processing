@@ -67,6 +67,24 @@ function Upload({ selectedFilter }) {
             {uploadedImage && <img src={uploadedImage} alt="Modified" />}
         </div>
     )
+
+    return (
+        <div>
+            <Toast ref={toast}></Toast>
+
+            <Tooltip target=".custom-choose-btn" content="Choose" position="bottom" />
+            <Tooltip target=".custom-upload-btn" content="Upload" position="bottom" />
+            <Tooltip target=".custom-cancel-btn" content="Clear" position="bottom" />
+
+            <FileUpload mode="basic" name="demo[]" url="/api/upload" multiple accept="image/*" maxFileSize={1000000}
+                        onSelect={onUploadHandler}
+                        headerTemplate={headerTemplate} itemTemplate={itemTemplate} emptyTemplate={emptyTemplate}
+                        chooseOptions={chooseOptions} uploadOptions={uploadOptions} cancelOptions={cancelOptions} />
+            <button onClick={onSubmitHandler}>Submit</button>
+            {originalImage && <img src={originalImage} alt="Original" />}
+            {uploadedImage && <img src={uploadedImage} alt="Modified" />}
+        </div>
+    )
 }
 
 export default Upload;
