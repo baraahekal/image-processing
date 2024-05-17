@@ -137,29 +137,114 @@ func applyBicubicFilter(img image.Image) image.Image {
 func bicubicInterpolation(pixels [4][4]color.RGBA, fx, fy float64) color.RGBA {
 	var r, g, b, a float64
 	for j := 0; j < 4; j++ {
-		var p [4]float64
+		var pR, pG, pB, pA [4]float64
 		for i := 0; i < 4; i++ {
-			p[i] = cubicHermite(pixels[0][i].RGBA(), pixels[1][i].RGBA(), pixels[2][i].RGBA(), pixels[3][i].RGBA(), fx)
+			r0, g0, b0, a0 := pixels[0][i].RGBA()
+			r1, g1, b1, a1 := pixels[1][i].RGBA()
+			r2, g2, b2, a2 := pixels[2][i].RGBA()
+			r3, g3, b3, a3 := pixels[3][i].RGBA()
+			pR[i] = cubicHermite(r0, r1, r2, r3, fx)
+			pG[i] = cubicHermite(g0, g1, g2, g3, fx)
+			pB[i] = cubicHermite(b0, b1, b2, b3, fx)
+			pA[i] = cubicHermite(a0, a1, a2, a3, fx)
 		}
-		h := cubicHermite(p[0], p[1], p[2], p[3], fy)
-		r += h * float64(pixels[j][0].R)
-		g += h * float64(pixels[j][0].G)
-		b += h * float64(pixels[j][0].B)
-		a += h * float64(pixels[j][0].A)
+		r += cubicHermite(uint32(pR[0]), uint32(pR[1]), uint32(pR[2]), uint32(pR[3]), fy)
+		g += cubicHermite(uint32(pG[0]), uint32(pG[1]), uint32(pG[2]), uint32(pG[3]), fy)
+		b += cubicHermite(uint32(pB[0]), uint32(pB[1]), uint32(pB[2]), uint32(pB[3]), fy)
+		a += cubicHermite(uint32(pA[0]), uint32(pA[1]), uint32(pA[2]), uint32(pA[3]), fy)
 	}
-	r = math.Min(math.Max(r, 0), 255)
-	g = math.Min(math.Max(g, 0), 255)
-	b = math.Min(math.Max(b, 0), 255)
-	a = math.Min(math.Max(a, 0), 255)
+	r = math.Min(math.Max(r/257, 0), 255) // Convert from uint32 to uint8 and clamp
+	g = math.Min(math.Max(g/257, 0), 255)
+	b = math.Min(math.Max(b/257, 0), 255)
+	a = math.Min(math.Max(a/257, 0), 255)
 	return color.RGBA{uint8(r), uint8(g), uint8(b), uint8(a)}
 }
-func cubicHermite(n0, n1, n2, n3 float64, t float64) float64 {
-	return n1 + 0.5*t*(n2-n0+(2.0*n0-5.0*n1+4.0*n2-n3+t*(3.0*(n1-n2)+n3-n0)))
+func cubicHermite(v0, v1, v2, v3 uint32, t float64) float64 {
+	P0 := float64(v1)
+	P1 := float64(v2)
+	M0 := 0.5 * (float64(v2) - float64(v0))
+	M1 := 0.5 * (float64(v3) - float64(v1))
+	t2 := t * t
+	t3 := t2 * t
+	return (2*t3-3*t2+1)*P0 + (t3-2*t2+t)*M0 + (-2*t3+3*t2)*P1 + (t3-t2)*M1
+}
+func histeqChannel(img *image.RGBA, channelIndex int) *image.Gray {
+	bounds := img.Bounds()
+	hist := make([]int, 256)
+	cdf := make([]int, 256)
+
+	// Compute histogram
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			c := img.RGBAAt(x, y)
+			value := uint8(0)
+			switch channelIndex {
+			case 0:
+				value = c.R
+			case 1:
+				value = c.G
+			case 2:
+				value = c.B
+			}
+			hist[value]++
+		}
+	}
+	// Compute CDF
+	sum := 0
+	for i := 0; i < 256; i++ {
+		sum += hist[i]
+		cdf[i] = sum
+	}
+	// Normalize CDF
+	max := float64(bounds.Dx() * bounds.Dy())
+	cdfMin := cdf[0]
+	for i := 0; i < 256; i++ {
+		cdf[i] = int(float64(cdf[i]-cdfMin) * 255 / (max - float64(cdfMin)))
+	}
+	// Apply equalization
+	equalized := image.NewGray(bounds)
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			c := img.RGBAAt(x, y)
+			value := uint8(0)
+			switch channelIndex {
+			case 0:
+				value = uint8(cdf[c.R])
+			case 1:
+				value = uint8(cdf[c.G])
+			case 2:
+				value = uint8(cdf[c.B])
+			}
+			equalized.SetGray(x, y, color.Gray{Y: value})
+		}
+	}
+	return equalized
 }
 func apply_histogram_equalization_filter(img image.Image) image.Image {
-	// Implement the filter
+	bounds := img.Bounds()
+	rgba := image.NewRGBA(bounds)
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			rgba.Set(x, y, img.At(x, y))
+		}
+	}
 
-	return img
+	// Perform histogram equalization on each channel
+	r := histeqChannel(rgba, 0)
+	g := histeqChannel(rgba, 1)
+	b := histeqChannel(rgba, 2)
+
+	// Create a new image with the equalized channels
+	equalized := image.NewRGBA(bounds)
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			rColor := color.RGBAModel.Convert(r.At(x, y)).(color.RGBA)
+			gColor := color.RGBAModel.Convert(g.At(x, y)).(color.RGBA)
+			bColor := color.RGBAModel.Convert(b.At(x, y)).(color.RGBA)
+			equalized.Set(x, y, color.RGBA{R: rColor.R, G: gColor.G, B: bColor.B, A: 255})
+		}
+	}
+	return equalized
 }
 func calculateHistogram(img image.Image) [256]uint64 {
 	bounds := img.Bounds()
@@ -182,7 +267,7 @@ func calculateCDF(histogram [256]uint64) [256]uint64 {
 	}
 	return cdf
 }
-func histogramSpecification(img image.Image) image.Image {
+func apply_histogram_specification_filter(img image.Image) image.Image {
 	inputGray := image.NewGray(img.Bounds())
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
@@ -219,16 +304,10 @@ func histogramSpecification(img image.Image) image.Image {
 	}
 	return outputImg
 }
-func apply_histogram_specification_filter(img image.Image) image.Image {
-	// Implement the filter
-	return img
-}
-
 func apply_fourier_transform_filter(img image.Image) image.Image {
 	// Implement the filter
 	return img
 }
-
 func apply_interpolation_filter(img image.Image) image.Image {
 	// Implement the filter
 	// عدل عليه وظبطه وخليه لل3 واتاكد انه صح عشان مش لاقي حاجة اتاكد منها معلش
