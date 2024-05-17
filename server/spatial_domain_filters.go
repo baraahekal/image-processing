@@ -6,6 +6,7 @@ import (
 	"image/color"
 	_ "image/color"
 	_ "image/jpeg" // or "image/png" depending on your image type
+	"math/rand"
 	_ "os"
 	"sort"
 )
@@ -301,6 +302,39 @@ func apply_gaussian_noise_filter(img image.Image) image.Image {
 }
 
 func apply_uniform_noise_filter(img image.Image) image.Image {
-	// Implement the filter
-	return img
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	newImg := image.NewRGBA(bounds)
+
+	q := 0.0
+	t := 0.2
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, alpha := img.At(x, y).RGBA()
+
+			// Convert to float64 and normalize to [0,1]
+			rFloat := float64(r) / 65535.0
+			gFloat := float64(g) / 65535.0
+			bFloat := float64(b) / 65535.0
+
+			// Generate uniform noise
+			noise := q + rand.Float64()*(t-q)
+
+			// Add noise to image
+			rFloat = rFloat + noise
+			gFloat = gFloat + noise
+			bFloat = bFloat + noise
+
+			// Clip values to [0,1]
+			rFloat = clamp(rFloat, 0, 1)
+			gFloat = clamp(gFloat, 0, 1)
+			bFloat = clamp(bFloat, 0, 1)
+
+			// Convert back to uint16 and set pixel
+			newImg.Set(x, y, color.RGBA64{R: uint16(rFloat * 65535), G: uint16(gFloat * 65535), B: uint16(bFloat * 65535), A: uint16(alpha)})
+		}
+	}
+
+	return newImg
 }
