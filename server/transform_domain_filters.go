@@ -43,6 +43,7 @@ img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 		filteredImg := applyBilinearFilter(img)
 	 بتتنده كده
 */
+
 func applyBilinearFilter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
