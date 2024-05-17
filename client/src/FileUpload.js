@@ -1,11 +1,16 @@
 import React, { useState, useRef } from "react";
 import { FileUpload } from 'primereact/fileupload';
 import { Toast } from 'primereact/toast';
+import "primereact/resources/themes/lara-light-cyan/theme.css";
+import 'primereact/resources/primereact.min.css';
+import 'primeicons/primeicons.css';
+import Stepper from './Stepper';
 
 function Upload({ selectedFilter }) {
     const [originalImage, setOriginalImage] = useState(null);
-    const [uploadedImage, setUploadedImage] = useState(null);
+    const [editedImage, setEditedImage] = useState(null);
     const [file, setFile] = useState(null); // state to store the file
+    const [step, setStep] = useState(0); // state to store the current step
     const toast = useRef(null);
 
     const onUpload = () => {
@@ -50,12 +55,17 @@ function Upload({ selectedFilter }) {
                 }
 
                 const image = await response.blob();
-                setUploadedImage(URL.createObjectURL(image));
+                setEditedImage(URL.createObjectURL(image));
                 onUpload();
+                nextStep(); // Move to the next step
             } catch (error) {
                 console.error('There was a problem with the fetch operation: ' + error.message);
             }
         };
+    };
+
+    const nextStep = () => {
+        setStep(step + 1);
     };
 
     return (
@@ -63,26 +73,7 @@ function Upload({ selectedFilter }) {
             <Toast ref={toast}></Toast>
             <FileUpload mode="basic" name="demo[]" accept="image/*" maxFileSize={1000000} onSelect={onUploadHandler} />
             <button onClick={onSubmitHandler}>Submit</button>
-            {originalImage && <img src={originalImage} alt="Original" />}
-            {uploadedImage && <img src={uploadedImage} alt="Modified" />}
-        </div>
-    )
-
-    return (
-        <div>
-            <Toast ref={toast}></Toast>
-
-            <Tooltip target=".custom-choose-btn" content="Choose" position="bottom" />
-            <Tooltip target=".custom-upload-btn" content="Upload" position="bottom" />
-            <Tooltip target=".custom-cancel-btn" content="Clear" position="bottom" />
-
-            <FileUpload mode="basic" name="demo[]" url="/api/upload" multiple accept="image/*" maxFileSize={1000000}
-                        onSelect={onUploadHandler}
-                        headerTemplate={headerTemplate} itemTemplate={itemTemplate} emptyTemplate={emptyTemplate}
-                        chooseOptions={chooseOptions} uploadOptions={uploadOptions} cancelOptions={cancelOptions} />
-            <button onClick={onSubmitHandler}>Submit</button>
-            {originalImage && <img src={originalImage} alt="Original" />}
-            {uploadedImage && <img src={uploadedImage} alt="Modified" />}
+            <Stepper step={step} originalImage={originalImage} editedImage={editedImage} />
         </div>
     )
 }
