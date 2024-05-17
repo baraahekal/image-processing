@@ -57,7 +57,6 @@ func apply_median_filter(img image.Image) image.Image {
 
 	return newImg
 }
-
 func apply_min_filter(img image.Image) image.Image {
 
 	bounds := img.Bounds()
@@ -86,7 +85,6 @@ func apply_min_filter(img image.Image) image.Image {
 
 	return newImg
 }
-
 func apply_max_filter(img image.Image) image.Image {
 
 	bounds := img.Bounds()
@@ -115,7 +113,6 @@ func apply_max_filter(img image.Image) image.Image {
 
 	return newImg
 }
-
 func apply_averaging_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -155,7 +152,6 @@ func apply_averaging_filter(img image.Image) image.Image {
 
 	return newImg
 }
-
 func apply_gaussian_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -314,7 +310,6 @@ func apply_sobel_filter(img image.Image) image.Image {
 		{-2, 0, 2},
 		{-1, 0, 1},
 	}
-
 	// For the Y axis
 	//kernel := [][]float64{
 	//	{-1, -2, -1},
@@ -347,8 +342,31 @@ func apply_sobel_filter(img image.Image) image.Image {
 }
 
 func apply_salt_pepper_filter(img image.Image) image.Image {
-
-	return img
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	total_pixels := width * height
+	output_img := image.NewRGBA(image.Rect(0, 0, width, height))
+	// Copy the original image to the new image
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			output_img.Set(x, y, img.At(x, y))
+		}
+	}
+	// Add white noise (salt)
+	number_of_pixels := rand.Intn(total_pixels + 1)
+	for i := 0; i < number_of_pixels; i++ {
+		y_coord := rand.Intn(height)
+		x_coord := rand.Intn(width)
+		output_img.Set(x_coord, y_coord, color.RGBA{255, 255, 255, 255})
+	}
+	// Add black noise (pepper)
+	number_of_pixels = rand.Intn(total_pixels + 1)
+	for i := 0; i < number_of_pixels; i++ {
+		y_coord := rand.Intn(height)
+		x_coord := rand.Intn(width)
+		output_img.Set(x_coord, y_coord, color.RGBA{0, 0, 0, 255})
+	}
+	return output_img
 }
 
 func apply_gaussian_noise_filter(img image.Image) image.Image {
