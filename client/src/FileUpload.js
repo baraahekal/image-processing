@@ -17,20 +17,47 @@ function Upload({ selectedFilter }) {
         toast.current.show({ severity: 'info', summary: 'Success', detail: 'File Uploaded' });
     };
 
-    const onUploadHandler = (files) => {
-        // Display the original image
-        setOriginalImage(URL.createObjectURL(files.files[0]));
+     const onUploadHandler = (files) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
 
-        // Reset the step
-        if (step > 0) {
-        setStep(step - 1);
+            // Set the canvas dimensions to the desired size
+            canvas.width = 500; // width
+            canvas.height = 500; // height
 
-        }
+            // Draw the image on the canvas
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        // Save the file locally
-        setFile(files.files[0]);
+            // Get the data URL of the resized image
+            const resizedImage = canvas.toDataURL();
 
+            // Display the resized image
+            setOriginalImage(resizedImage);
+
+            // Save the file locally
+            setFile(new File([dataURItoBlob(resizedImage)], files.files[0].name, { type: files.files[0].type }));
+
+            // Reset the step
+            if (step > 0) {
+                setStep(step - 1);
+            }
+        };
+        img.src = URL.createObjectURL(files.files[0]);
     };
+
+    // Helper function to convert data URI to blob
+    function dataURItoBlob(dataURI) {
+        const byteString = atob(dataURI.split(',')[1]);
+        const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        return new Blob([ab], { type: mimeString });
+    }
 
     const onSubmitHandler = async () => {
         const reader = new FileReader();

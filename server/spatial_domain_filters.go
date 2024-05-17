@@ -55,6 +55,7 @@ func apply_median_filter(img image.Image) image.Image {
 
 	return newImg
 }
+
 func apply_min_filter(img image.Image) image.Image {
 
 	bounds := img.Bounds()
@@ -83,6 +84,7 @@ func apply_min_filter(img image.Image) image.Image {
 
 	return newImg
 }
+
 func apply_max_filter(img image.Image) image.Image {
 
 	bounds := img.Bounds()
@@ -111,6 +113,7 @@ func apply_max_filter(img image.Image) image.Image {
 
 	return newImg
 }
+
 func apply_averaging_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -150,6 +153,7 @@ func apply_averaging_filter(img image.Image) image.Image {
 
 	return newImg
 }
+
 func apply_gaussian_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -254,6 +258,7 @@ func apply_sobel_filter(img image.Image) image.Image {
 		{-2, 0, 2},
 		{-1, 0, 1},
 	}
+
 	// For the Y axis
 	//kernel := [][]float64{
 	//	{-1, -2, -1},
