@@ -51,7 +51,13 @@ export const NodeService = {
                     { "key": "1-0", "label": "Histogram Equalization", "icon": "pi pi-folder", },
                     { "key": "1-1", "label": "Histogram Specification", "icon": "pi pi-folder", },
                     { "key": "1-2", "label": "Fourier transform", "icon": "pi pi-folder", },
-                    { "key": "1-3", "label": "Interpolation", "icon": "pi pi-folder", },
+                    { "key": "1-3", "label": "Interpolation", "icon": "pi pi-folder",
+                        "children": [
+                            { "key": "1-3-0", "label": "Nearest Neighbour", "icon": "pi pi-folder", },
+                            { "key": "1-3-1", "label": "Bilinear", "icon": "pi pi-folder", },
+                            { "key": "1-3-2", "label": "Bicubic", "icon": "pi pi-folder", },
+                        ]
+                    },
                 ]
             },
             {

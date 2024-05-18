@@ -184,7 +184,58 @@ func cubicHermite(v0, v1, v2, v3 uint32, t float64) float64 {
 	t3 := t2 * t
 	return (2*t3-3*t2+1)*P0 + (t3-2*t2+t)*M0 + (-2*t3+3*t2)*P1 + (t3-t2)*M1
 }
+func histeqChannel(img *image.RGBA, channelIndex int) *image.Gray {
+	bounds := img.Bounds()
+	hist := make([]int, 256)
+	cdf := make([]int, 256)
 
+	// Compute histogram
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			c := img.RGBAAt(x, y)
+			value := uint8(0)
+			switch channelIndex {
+			case 0:
+				value = c.R
+			case 1:
+				value = c.G
+			case 2:
+				value = c.B
+			}
+			hist[value]++
+		}
+	}
+	// Compute CDF
+	sum := 0
+	for i := 0; i < 256; i++ {
+		sum += hist[i]
+		cdf[i] = sum
+	}
+	// Normalize CDF
+	max := float64(bounds.Dx() * bounds.Dy())
+	cdfMin := cdf[0]
+	for i := 0; i < 256; i++ {
+		cdf[i] = int(float64(cdf[i]-cdfMin) * 255 / (max - float64(cdfMin)))
+	}
+	// Apply equalization
+	equalized := image.NewGray(bounds)
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			c := img.RGBAAt(x, y)
+			value := uint8(0)
+			switch channelIndex {
+			case 0:
+				value = uint8(cdf[c.R])
+			case 1:
+				value = uint8(cdf[c.G])
+			case 2:
+				value = uint8(cdf[c.B])
+			}
+			equalized.SetGray(x, y, color.Gray{Y: value})
+		}
+	}
+	return equalized
+}
 func splitChannels(img image.Image) (r, g, b *image.Gray) {
 	bounds := img.Bounds()
 	r = image.NewGray(bounds)
@@ -267,43 +318,52 @@ func interp(value float64, cdfTemplate []float64) float64 {
 	}
 	return float64(len(cdfTemplate) - 1)
 }
-func calculate_color_histogram(img image.Image) ([256]int, [256]int, [256]int) {
-	var histogramR, histogramG, histogramB [256]int
-	bounds := img.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			color := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
-			histogramR[color.R]++
-			histogramG[color.G]++
-			histogramB[color.B]++
-		}
-	}
-	return histogramR, histogramG, histogramB
-}
 func apply_histogram_equalization_filter(img image.Image) image.Image {
-	histogramR, histogramG, histogramB := calculate_color_histogram(img)
 	bounds := img.Bounds()
-	totalPixels := float64((bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y))
-	var cdfR, cdfG, cdfB [256]float64
-	cdfR[0] = float64(histogramR[0]) / totalPixels
-	cdfG[0] = float64(histogramG[0]) / totalPixels
-	cdfB[0] = float64(histogramB[0]) / totalPixels
-	for i := 1; i < 256; i++ {
-		cdfR[i] = cdfR[i-1] + float64(histogramR[i])/totalPixels
-		cdfG[i] = cdfG[i-1] + float64(histogramG[i])/totalPixels
-		cdfB[i] = cdfB[i-1] + float64(histogramB[i])/totalPixels
-	}
-	equalizedImg := image.NewRGBA(bounds)
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			color := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
-			newR := uint8(math.Round(cdfR[color.R] * 255))
-			newG := uint8(math.Round(cdfG[color.G] * 255))
-			newB := uint8(math.Round(cdfB[color.B] * 255))
-			equalizedImg.Set(x, y, color.RGBA{newR, newG, newB, 255})
+	rgba := image.NewRGBA(bounds)
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			rgba.Set(x, y, img.At(x, y))
 		}
 	}
-	return equalizedImg
+
+	// Perform histogram equalization on each channel
+	r := histeqChannel(rgba, 0)
+	g := histeqChannel(rgba, 1)
+	b := histeqChannel(rgba, 2)
+
+	// Create a new image with the equalized channels
+	equalized := image.NewRGBA(bounds)
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			rColor := color.RGBAModel.Convert(r.At(x, y)).(color.RGBA)
+			gColor := color.RGBAModel.Convert(g.At(x, y)).(color.RGBA)
+			bColor := color.RGBAModel.Convert(b.At(x, y)).(color.RGBA)
+			equalized.Set(x, y, color.RGBA{R: rColor.R, G: gColor.G, B: bColor.B, A: 255})
+		}
+	}
+	return equalized
+}
+func calculateHistogram(img image.Image) [256]uint64 {
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	histogram := [256]uint64{}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, _, _, _ := img.At(x, y).RGBA()
+			pixelValue := int(r >> 8)
+			histogram[pixelValue]++
+		}
+	}
+	return histogram
+}
+func calculateCDF(histogram [256]uint64) [256]uint64 {
+	var cdf [256]uint64
+	cdf[0] = histogram[0]
+	for i := 1; i < 256; i++ {
+		cdf[i] = cdf[i-1] + histogram[i]
+	}
+	return cdf
 }
 func apply_histogram_specification_filter(img image.Image) image.Image {
 	templatePath := "asset/Sunset.jpeg"
