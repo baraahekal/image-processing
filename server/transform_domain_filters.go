@@ -20,20 +20,36 @@ img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	filteredImg := applyNearestNeighborFilter(img)
 	بتتنده كده
 */
-func applyNearestNeighborFilter(img image.Image) image.Image {
-	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	outputImg := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			origX := int(math.Round(float64(x) / 2.0))
-			origY := int(math.Round(float64(y) / 2.0))
-			nearestColor := img.At(origX, origY)
-			outputImg.Set(x, y, nearestColor)
+
+func apply_nearest_neighbour_filter(inputImage image.Image, newWidth, newHeight int) image.Image {
+	// Create a new RGBA image with the desired dimensions
+	outputImage := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+
+	// Get the bounds of the input image
+	bounds := inputImage.Bounds()
+
+	// Calculate the scaling factors
+	scaleX := float64(bounds.Dx()) / float64(newWidth)
+	scaleY := float64(bounds.Dy()) / float64(newHeight)
+
+	// Perform nearest neighbor interpolation
+	for y := 0; y < newHeight; y++ {
+		for x := 0; x < newWidth; x++ {
+			// Calculate the corresponding pixel in the original image
+			px := int(float64(x) * scaleX)
+			py := int(float64(y) * scaleY)
+
+			// Get the color of the nearest pixel in the original image
+			color := inputImage.At(px, py)
+
+			// Set the color of the pixel in the output image
+			outputImage.Set(x, y, color)
 		}
 	}
-	return outputImg
+
+	return outputImage
 }
+
 func readImage(filePath string) (image.Image, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -119,79 +135,6 @@ img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 بتتنده كده
 */
 
-func applyBicubicFilter(img image.Image) image.Image {
-	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	outputImg := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			origX := float64(x) / 2.0
-			origY := float64(y) / 2.0
-			x1 := int(math.Floor(origX)) - 1
-			y1 := int(math.Floor(origY)) - 1
-			x2 := x1 + 1
-			y2 := y1 + 1
-			if x1 < 0 {
-				x1 = 0
-			}
-			if y1 < 0 {
-				y1 = 0
-			}
-			if x2 >= bounds.Max.X {
-				x2 = bounds.Max.X - 1
-			}
-			if y2 >= bounds.Max.Y {
-				y2 = bounds.Max.Y - 1
-			}
-			fx := origX - float64(x1)
-			fy := origY - float64(y1)
-			var pixels [4][4]color.RGBA
-			for j := 0; j < 4; j++ {
-				for i := 0; i < 4; i++ {
-					pixels[i][j] = img.At(x1+i, y1+j).(color.RGBA)
-				}
-			}
-			r := bicubicInterpolation(pixels, fx, fy)
-			outputImg.Set(x, y, r)
-		}
-	}
-	return outputImg
-}
-func bicubicInterpolation(pixels [4][4]color.RGBA, fx, fy float64) color.RGBA {
-	var r, g, b, a float64
-	for j := 0; j < 4; j++ {
-		var pR, pG, pB, pA [4]float64
-		for i := 0; i < 4; i++ {
-			r0, g0, b0, a0 := pixels[0][i].RGBA()
-			r1, g1, b1, a1 := pixels[1][i].RGBA()
-			r2, g2, b2, a2 := pixels[2][i].RGBA()
-			r3, g3, b3, a3 := pixels[3][i].RGBA()
-			pR[i] = cubicHermite(r0, r1, r2, r3, fx)
-			pG[i] = cubicHermite(g0, g1, g2, g3, fx)
-			pB[i] = cubicHermite(b0, b1, b2, b3, fx)
-			pA[i] = cubicHermite(a0, a1, a2, a3, fx)
-		}
-		r += cubicHermite(uint32(pR[0]), uint32(pR[1]), uint32(pR[2]), uint32(pR[3]), fy)
-		g += cubicHermite(uint32(pG[0]), uint32(pG[1]), uint32(pG[2]), uint32(pG[3]), fy)
-		b += cubicHermite(uint32(pB[0]), uint32(pB[1]), uint32(pB[2]), uint32(pB[3]), fy)
-		a += cubicHermite(uint32(pA[0]), uint32(pA[1]), uint32(pA[2]), uint32(pA[3]), fy)
-	}
-	r = math.Min(math.Max(r/257, 0), 255) // Convert from uint32 to uint8 and clamp
-	g = math.Min(math.Max(g/257, 0), 255)
-	b = math.Min(math.Max(b/257, 0), 255)
-	a = math.Min(math.Max(a/257, 0), 255)
-	return color.RGBA{uint8(r), uint8(g), uint8(b), uint8(a)}
-}
-func cubicHermite(v0, v1, v2, v3 uint32, t float64) float64 {
-	P0 := float64(v1)
-	P1 := float64(v2)
-	M0 := 0.5 * (float64(v2) - float64(v0))
-	M1 := 0.5 * (float64(v3) - float64(v1))
-	t2 := t * t
-	t3 := t2 * t
-	return (2*t3-3*t2+1)*P0 + (t3-2*t2+t)*M0 + (-2*t3+3*t2)*P1 + (t3-t2)*M1
-}
-
 func calculate_color_histogram(img image.Image) ([256]int, [256]int, [256]int) {
 	var histogramR, histogramG, histogramB [256]int
 	bounds := img.Bounds()
@@ -208,22 +151,76 @@ func calculate_color_histogram(img image.Image) ([256]int, [256]int, [256]int) {
 	return histogramR, histogramG, histogramB
 }
 
-func splitChannels(img image.Image) (r, g, b *image.Gray) {
-	bounds := img.Bounds()
-	r = image.NewGray(bounds)
-	g = image.NewGray(bounds)
-	b = image.NewGray(bounds)
+func applyBicubicFilter(img image.Image, newWidth, newHeight int) image.Image {
+	oldBounds := img.Bounds()
+	newImage := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+	xRatio := float64(oldBounds.Dx()) / float64(newWidth)
+	yRatio := float64(oldBounds.Dy()) / float64(newHeight)
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			col := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
-			r.Set(x, y, color.Gray{Y: col.R})
-			g.Set(x, y, color.Gray{Y: col.G})
-			b.Set(x, y, color.Gray{Y: col.B})
+	for newY := 0; newY < newHeight; newY++ {
+		for newX := 0; newX < newWidth; newX++ {
+			x := float64(newX) * xRatio
+			y := float64(newY) * yRatio
+			x1 := int(x)
+			y1 := int(y)
+
+			// Get the 16 nearest pixels
+			pixels := make([]color.Color, 16)
+			for i := -1; i <= 2; i++ {
+				for j := -1; j <= 2; j++ {
+					pixels[(i+1)*4+(j+1)] = img.At(clasmp(x1+i, 0, oldBounds.Max.X-1), clasmp(y1+j, 0, oldBounds.Max.Y-1))
+				}
+			}
+
+			// Calculate the weights for the 16 pixels
+			weights := make([]float64, 16)
+			for i := 0; i < 16; i++ {
+				dx := math.Abs(x - float64(x1+i%4))
+				dy := math.Abs(y - float64(y1+i/4))
+				weights[i] = bicubicWeight(dx) * bicubicWeight(dy)
+			}
+
+			// Calculate the new color for the pixel
+			var r, g, b, a float64
+			for i, pixel := range pixels {
+				ri, gi, bi, ai := pixel.RGBA()
+				r += weights[i] * float64(ri)
+				g += weights[i] * float64(gi)
+				b += weights[i] * float64(bi)
+				a += weights[i] * float64(ai)
+			}
+
+			newImage.Set(newX, newY, color.RGBA{
+				R: uint8(r / 0x101),
+				G: uint8(g / 0x101),
+				B: uint8(b / 0x101),
+				A: uint8(a / 0x101),
+			})
 		}
 	}
 
-	return r, g, b
+	return newImage
+}
+
+func clasmp(x, min, max int) int {
+	if x < min {
+		return min
+	}
+	if x > max {
+		return max
+	}
+	return x
+}
+
+func bicubicWeight(x float64) float64 {
+	// The coefficients 0.5 and -0.5 can be adjusted to change the sharpness of the interpolation
+	if x < 1.0 {
+		return 1.5*x*x*x - 2.5*x*x + 1.0
+	} else if x < 2.0 {
+		return -0.5*x*x*x + 2.5*x*x - 4.0*x + 2.0
+	} else {
+		return 0.0
+	}
 }
 
 // cumulativeDistribution calculates the CDF of a grayscale image
@@ -242,29 +239,6 @@ func cumulativeDistribution(img image.Image) []float64 {
 	return cdf
 }
 
-// adjustCDF adjusts the CDF by inserting zeros and ones as needed
-func adjustCDF(cdf []float64, hist []int) []float64 {
-	adjustedCDF := make([]float64, 256)
-	for i := 0; i < hist[0]; i++ {
-		adjustedCDF[i] = 0
-	}
-	copy(adjustedCDF[hist[0]:], cdf)
-	for i := len(cdf); i < 256; i++ {
-		adjustedCDF[i] = 1
-	}
-	return adjustedCDF
-}
-
-// interp performs linear interpolation
-func interp(value float64, cdfTemplate []float64) float64 {
-	for i := 0; i < len(cdfTemplate)-1; i++ {
-		if value <= cdfTemplate[i+1] {
-			t := (value - cdfTemplate[i]) / (cdfTemplate[i+1] - cdfTemplate[i])
-			return float64(i) + t
-		}
-	}
-	return float64(len(cdfTemplate) - 1)
-}
 func apply_histogram_equalization_filter(img image.Image) image.Image {
 	histogramR, histogramG, histogramB := calculate_color_histogram(img)
 	bounds := img.Bounds()
@@ -294,6 +268,7 @@ func apply_histogram_equalization_filter(img image.Image) image.Image {
 
 	return equalizedImg
 }
+
 func calculateHistogram(img image.Image) [256]uint64 {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -307,6 +282,7 @@ func calculateHistogram(img image.Image) [256]uint64 {
 	}
 	return histogram
 }
+
 func calculateCDF(histogram [256]uint64) [256]uint64 {
 	var cdf [256]uint64
 	cdf[0] = histogram[0]
@@ -315,6 +291,7 @@ func calculateCDF(histogram [256]uint64) [256]uint64 {
 	}
 	return cdf
 }
+
 func apply_histogram_specification_filter(img image.Image) image.Image {
 	templatePath := "asset/Sunset.jpeg"
 	templateImg, err := readImage(templatePath)
@@ -383,10 +360,12 @@ func argmin(x []float64) int {
 	}
 	return minIndex
 }
+
 func apply_fourier_transform_filter(img image.Image) image.Image {
 	// Implement the filter
 	return img
 }
+
 func apply_interpolation_filter(img image.Image) image.Image {
 	// Implement the filter
 	// عدل عليه وظبطه وخليه لل3 واتاكد انه صح عشان مش لاقي حاجة اتاكد منها معلش

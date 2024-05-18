@@ -97,11 +97,11 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 		case "1-2":
 			img = apply_fourier_transform_filter(img)
 		case "1-3-0":
-			img = applyNearestNeighborFilter(img)
+			img = apply_nearest_neighbour_filter(img, 500, 500)
 		case "1-3-1":
 			img = applyBilinearFilter(img, 500, 500)
 		case "1-3-2":
-			img = applyBicubicFilter(img)
+			img = applyBicubicFilter(img, 500, 500)
 		case "2-0":
 			img = apply_huffman_coding(img)
 
