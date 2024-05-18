@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"math/cmplx"
 	"os"
 )
 
@@ -356,9 +357,108 @@ func argmin(x []float64) int {
 	}
 	return minIndex
 }
-func apply_fourier_transform_filter(img image.Image) image.Image {
-	// Implement the filter
+func toGrayscale(img image.Image) [][]float64 {
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	gray := make([][]float64, height)
+	for y := 0; y < height; y++ {
+		gray[y] = make([]float64, width)
+		for x := 0; x < width; x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+			gray[y][x] = 0.299*float64(r>>8) + 0.587*float64(g>>8) + 0.114*float64(b>>8)
+		}
+	}
+	return gray
+}
+
+// Perform the 2D DFT
+func dft2D(input [][]float64) [][]complex128 {
+	height := len(input)
+	width := len(input[0])
+	output := make([][]complex128, height)
+	for u := range output {
+		output[u] = make([]complex128, width)
+	}
+
+	for u := 0; u < height; u++ {
+		for v := 0; v < width; v++ {
+			var sum complex128
+			for x := 0; x < height; x++ {
+				for y := 0; y < width; y++ {
+					angle := 2.0 * math.Pi * (float64(u*x)/float64(height) + float64(v*y)/float64(width))
+					sum += complex(input[x][y], 0) * cmplx.Exp(-1i*complex(angle, 0))
+				}
+			}
+			output[u][v] = sum
+		}
+	}
+	return output
+}
+
+// Perform the inverse 2D DFT
+func idft2D(input [][]complex128) [][]float64 {
+	height := len(input)
+	width := len(input[0])
+	output := make([][]float64, height)
+	for x := range output {
+		output[x] = make([]float64, width)
+	}
+
+	for x := 0; x < height; x++ {
+		for y := 0; y < width; y++ {
+			var sum complex128
+			for u := 0; u < height; u++ {
+				for v := 0; v < width; v++ {
+					angle := 2.0 * math.Pi * (float64(u*x)/float64(height) + float64(v*y)/float64(width))
+					sum += input[u][v] * cmplx.Exp(1i*complex(angle, 0))
+				}
+			}
+			output[x][y] = real(sum) / float64(height*width)
+		}
+	}
+	return output
+}
+
+// Apply a low-pass filter in the frequency domain
+func applyLowPassFilter(fft [][]complex128, cutoff float64) {
+	height := len(fft)
+	width := len(fft[0])
+	for u := 0; u < height; u++ {
+		for v := 0; v < width; v++ {
+			distance := math.Sqrt(math.Pow(float64(u-height/2), 2) + math.Pow(float64(v-width/2), 2))
+			if distance > cutoff {
+				fft[u][v] = 0
+			}
+		}
+	}
+}
+
+// Convert 2D float array to grayscale image
+func floatArrayToGrayImage(input [][]float64) *image.Gray {
+	height := len(input)
+	width := len(input[0])
+	img := image.NewGray(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			value := uint8(math.Min(math.Max(input[y][x], 0), 255))
+			img.SetGray(x, y, color.Gray{Y: value})
+		}
+	}
 	return img
+}
+func apply_fourier_transform_filter(img image.Image) image.Image {
+	// Step 1: Convert to grayscale
+	grayImage := toGrayscale(img)
+	// Step 2: Perform 2D DFT
+	fftResult := dft2D(grayImage)
+	// Step 3: Apply a low-pass filter
+	cutoff := 30.0 // Adjust cutoff frequency as needed
+	applyLowPassFilter(fftResult, cutoff)
+	// Step 4: Perform inverse 2D DFT
+	filteredImageArray := idft2D(fftResult)
+	// Step 5: Convert back to image
+	filteredImage := floatArrayToGrayImage(filteredImageArray)
+	return filteredImage
 }
 func apply_interpolation_filter(img image.Image) image.Image {
 	// Implement the filter
