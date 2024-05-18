@@ -60,46 +60,51 @@ img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 		filteredImg := applyBilinearFilter(img)
 	 بتتنده كده
 */
-func applyBilinearFilter(img image.Image) image.Image {
-	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	outputImg := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			origX := float64(x) / 2.0
-			origY := float64(y) / 2.0
-			x1 := int(math.Floor(origX))
-			y1 := int(math.Floor(origY))
-			x2 := x1 + 1
-			y2 := y1 + 1
-			if x2 >= bounds.Max.X {
-				x2 = bounds.Max.X - 1
-			}
-			if y2 >= bounds.Max.Y {
-				y2 = bounds.Max.Y - 1
-			}
-			fx := origX - float64(x1)
-			fy := origY - float64(y1)
-			c00 := img.At(x1, y1)
-			c01 := img.At(x1, y2)
-			c10 := img.At(x2, y1)
-			c11 := img.At(x2, y2)
-			r := bilinearInterpolation(c00, c01, c10, c11, fx, fy)
-			outputImg.Set(x, y, r)
+func applyBilinearFilter(img image.Image, newWidth, newHeight int) image.Image {
+	oldBounds := img.Bounds()
+	newImage := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+	xRatio := float64(oldBounds.Dx()) / float64(newWidth)
+	yRatio := float64(oldBounds.Dy()) / float64(newHeight)
+
+	for newY := 0; newY < newHeight; newY++ {
+		for newX := 0; newX < newWidth; newX++ {
+			x := float64(newX) * xRatio
+			y := float64(newY) * yRatio
+			x1 := int(x)
+			y1 := int(y)
+			x2 := min(oldBounds.Max.X-1, x1+1)
+			y2 := min(oldBounds.Max.Y-1, y1+1)
+
+			// 4 nearest neighbors
+			a := img.At(x1, y1)
+			b := img.At(x1, y2)
+			c := img.At(x2, y1)
+			d := img.At(x2, y2)
+
+			// Interpolate in X direction
+			col1 := interpolate(a, c, x-float64(x1))
+			col2 := interpolate(b, d, x-float64(x1))
+
+			// Interpolate in Y direction
+			final := interpolate(col1, col2, y-float64(y1))
+
+			newImage.Set(newX, newY, final)
 		}
 	}
-	return outputImg
+
+	return newImage
 }
-func bilinearInterpolation(c00, c01, c10, c11 color.Color, fx, fy float64) color.Color {
-	r00, g00, b00, a00 := c00.RGBA()
-	r01, g01, b01, a01 := c01.RGBA()
-	r10, g10, b10, a10 := c10.RGBA()
-	r11, g11, b11, a11 := c11.RGBA()
-	r := uint8(float64(r00)*(1-fx)*(1-fy) + float64(r01)*(1-fx)*fy + float64(r10)*fx*(1-fy) + float64(r11)*fx*fy)
-	g := uint8(float64(g00)*(1-fx)*(1-fy) + float64(g01)*(1-fx)*fy + float64(g10)*fx*(1-fy) + float64(g11)*fx*fy)
-	b := uint8(float64(b00)*(1-fx)*(1-fy) + float64(b01)*(1-fx)*fy + float64(b10)*fx*(1-fy) + float64(b11)*fx*fy)
-	a := uint8(float64(a00)*(1-fx)*(1-fy) + float64(a01)*(1-fx)*fy + float64(a10)*fx*(1-fy) + float64(a11)*fx*fy)
-	return color.RGBA{r, g, b, a}
+
+func interpolate(c1, c2 color.Color, t float64) color.Color {
+	r1, g1, b1, a1 := c1.RGBA()
+	r2, g2, b2, a2 := c2.RGBA()
+
+	return color.RGBA64{
+		R: uint16(float64(r1)*(1-t) + float64(r2)*t),
+		G: uint16(float64(g1)*(1-t) + float64(g2)*t),
+		B: uint16(float64(b1)*(1-t) + float64(b2)*t),
+		A: uint16(float64(a1)*(1-t) + float64(a2)*t),
+	}
 }
 
 /*
@@ -113,6 +118,7 @@ img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 
 بتتنده كده
 */
+
 func applyBicubicFilter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y

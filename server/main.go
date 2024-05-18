@@ -99,7 +99,7 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 		case "1-3-0":
 			img = applyNearestNeighborFilter(img)
 		case "1-3-1":
-			img = applyBilinearFilter(img)
+			img = applyBilinearFilter(img, 500, 500)
 		case "1-3-2":
 			img = applyBicubicFilter(img)
 		case "2-0":
