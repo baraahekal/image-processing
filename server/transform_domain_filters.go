@@ -4,9 +4,9 @@ import (
 	"github.com/disintegration/imaging"
 	"image"
 	"image/color"
-	"image/draw"
 	"math"
 	"os"
+	"sort"
 )
 
 /*
@@ -269,30 +269,99 @@ func apply_histogram_equalization_filter(img image.Image) image.Image {
 	return equalizedImg
 }
 
-func calculateHistogram(img image.Image) [256]uint64 {
+func calculateHistogram2(img image.Image) ([]float64, []float64, []float64) {
+	histR := make([]float64, 256)
+	histG := make([]float64, 256)
+	histB := make([]float64, 256)
 	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	histogram := [256]uint64{}
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			r, _, _, _ := img.At(x, y).RGBA()
-			pixelValue := int(r >> 8)
-			histogram[pixelValue]++
+
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+			histR[r>>8]++
+			histG[g>>8]++
+			histB[b>>8]++
 		}
 	}
-	return histogram
+
+	return histR, histG, histB
 }
 
-func calculateCDF(histogram [256]uint64) [256]uint64 {
-	var cdf [256]uint64
-	cdf[0] = histogram[0]
-	for i := 1; i < 256; i++ {
-		cdf[i] = cdf[i-1] + histogram[i]
+// getCDF calculates the cumulative distribution function (CDF) of a color channel of an image
+func getCDF2(img image.Image, channel int) []float64 {
+	histR, histG, histB := calculateHistogram2(img)
+	var hist []float64
+	switch channel {
+	case 0:
+		hist = histR
+	case 1:
+		hist = histG
+	case 2:
+		hist = histB
 	}
+	cdf := make([]float64, 256)
+	cdf[0] = hist[0]
+
+	for i := 1; i < 256; i++ {
+		cdf[i] = cdf[i-1] + hist[i]
+	}
+
 	return cdf
 }
 
-func apply_histogram_specification_filter(img image.Image) image.Image {
+// histMatch performs histogram matching on a color channel of an image
+func histMatch2(cdfInput, cdfTemplate []float64, img, resultImg image.Image, channel int) *image.RGBA {
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			var pixelValue uint32
+			switch channel {
+			case 0:
+				pixelValue = r
+			case 1:
+				pixelValue = g
+			case 2:
+				pixelValue = b
+			}
+			newPixelValue := findClosest(cdfTemplate, cdfInput[pixelValue>>8])
+			switch channel {
+			case 0:
+				resultImg.(*image.RGBA).SetRGBA(x, y, color.RGBA{R: uint8(newPixelValue), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)})
+			case 1:
+				resultImg.(*image.RGBA).SetRGBA(x, y, color.RGBA{R: uint8(r >> 8), G: uint8(newPixelValue), B: uint8(b >> 8), A: uint8(a >> 8)})
+			case 2:
+				resultImg.(*image.RGBA).SetRGBA(x, y, color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(newPixelValue), A: uint8(a >> 8)})
+			}
+		}
+	}
+
+	return resultImg.(*image.RGBA)
+}
+
+func apply_histogram_specification_filter_color(img image.Image) image.Image {
+	templatePath := "asset/Sunset.png"
+	templateImg, err := readImage(templatePath)
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a new image for the result
+	resultImg := image.NewRGBA(img.Bounds())
+
+	// Calculate the CDFs for each color channel and perform histogram matching
+	for channel := 0; channel < 3; channel++ {
+		cdfInput := getCDF2(img, channel)
+		cdfTemplate := getCDF2(templateImg, channel)
+		resultImg = histMatch2(cdfInput, cdfTemplate, img, resultImg, channel)
+	}
+
+	return resultImg
+}
+
+func apply_histogram_specification_filter_gray(img image.Image) image.Image {
 	templatePath := "asset/Sunset.jpeg"
 	templateImg, err := readImage(templatePath)
 
@@ -309,37 +378,88 @@ func apply_histogram_specification_filter(img image.Image) image.Image {
 
 	}
 
-	println("A7AAAAA")
-	inputCDF := cumulativeDistribution(img)
-	templateCDF := cumulativeDistribution(templateImg)
+	// Convert the images to grayscale
+	img = imaging.Grayscale(img)
+	templateImg = imaging.Grayscale(templateImg)
 
-	mapping := make([]uint8, 256)
-	for i := range mapping {
-		diff := make([]float64, 256)
-		for j := range diff {
-			diff[j] = abs(inputCDF[i] - templateCDF[j])
-		}
-		mapping[i] = uint8(argmin(diff))
+	// Calculate the CDFs
+	cdfInput := getCDF(img)
+	cdfTemplate := getCDF(templateImg)
+
+	resultImg := histMatch(cdfInput, cdfTemplate, img)
+	return resultImg
+}
+
+func getCDF(img image.Image) []float64 {
+	hist := calculateHistogram(img)
+	cdf := make([]float64, 256)
+	cdf[0] = hist[0]
+
+	for i := 1; i < 256; i++ {
+		cdf[i] = cdf[i-1] + hist[i]
 	}
 
+	return cdf
+}
+
+func histMatchRGBA(cdfInput, cdfTemplate []float64, img image.Image) *image.RGBA {
 	bounds := img.Bounds()
-	outputImg := image.NewRGBA(bounds)
-	draw.Draw(outputImg, bounds, img, image.Point{}, draw.Src)
+	width, height := bounds.Dx(), bounds.Dy()
+	newImg := image.NewRGBA(image.Rect(0, 0, width, height))
 
-	for y := 0; y < bounds.Max.Y; y++ {
-		for x := 0; x < bounds.Max.X; x++ {
-			r, g, b, a := outputImg.At(x, y).RGBA()
-			outputImg.Set(x, y, color.RGBA{
-				R: mapping[r>>8],
-				G: mapping[g>>8],
-				B: mapping[b>>8],
-				A: uint8(a >> 8),
-			})
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			pixelValueR := int(r >> 8)
+			pixelValueG := int(g >> 8)
+			pixelValueB := int(b >> 8)
+			newPixelValueR := findClosest(cdfTemplate, cdfInput[pixelValueR])
+			newPixelValueG := findClosest(cdfTemplate, cdfInput[pixelValueG])
+			newPixelValueB := findClosest(cdfTemplate, cdfInput[pixelValueB])
+			newImg.Set(x, y, color.RGBA{R: uint8(newPixelValueR), G: uint8(newPixelValueG), B: uint8(newPixelValueB), A: uint8(a >> 8)})
 		}
 	}
 
-	return outputImg
+	return newImg
+}
 
+func histMatch(cdfInput, cdfTemplate []float64, img image.Image) *image.Gray {
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	newImg := image.NewGray(image.Rect(0, 0, width, height))
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, _, _, _ := img.At(x, y).RGBA()
+			pixelValue := int(r >> 8)
+			newPixelValue := findClosest(cdfTemplate, cdfInput[pixelValue])
+			newImg.Set(x, y, color.Gray{Y: uint8(newPixelValue)})
+		}
+	}
+
+	return newImg
+}
+
+func calculateHistogram(img image.Image) []float64 {
+	hist := make([]float64, 256)
+	bounds := img.Bounds()
+
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			r, _, _, _ := img.At(x, y).RGBA()
+			hist[r>>8]++
+		}
+	}
+
+	return hist
+}
+
+func findClosest(cdf []float64, target float64) int {
+	idx := sort.Search(len(cdf), func(i int) bool { return cdf[i] >= target })
+	if idx < len(cdf) {
+		return idx
+	}
+	return len(cdf) - 1
 }
 
 func abs(x float64) float64 {
@@ -363,11 +483,5 @@ func argmin(x []float64) int {
 
 func apply_fourier_transform_filter(img image.Image) image.Image {
 	// Implement the filter
-	return img
-}
-
-func apply_interpolation_filter(img image.Image) image.Image {
-	// Implement the filter
-	// عدل عليه وظبطه وخليه لل3 واتاكد انه صح عشان مش لاقي حاجة اتاكد منها معلش
 	return img
 }
