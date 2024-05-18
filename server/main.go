@@ -90,9 +90,13 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 			img = apply_gaussian_noise_filter(img)
 		case "0-2-2":
 			img = apply_uniform_noise_filter(img)
-		case "1-0":
+		case "1-0-0":
 			img = apply_histogram_equalization_filter(img)
-		case "1-1":
+		case "1-0-1":
+			img = apply_equalize_histogram_gray(img)
+		case "1-1-0":
+			img = apply_averaging_filter(img) // editable
+		case "1-1-1":
 			img = apply_histogram_specification_filter(img)
 		case "1-2":
 			img = apply_fourier_transform_filter(img)
