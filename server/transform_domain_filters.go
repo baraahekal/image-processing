@@ -405,66 +405,127 @@ func toGrayscale(img image.Image) [][]float64 {
 	return gray
 }
 
-// Perform the 2D DFT
-func dft2D(input [][]float64) [][]complex128 {
+// Perform 1D FFT
+func fft1D(a []complex128) {
+	n := len(a)
+	if n <= 1 {
+		return
+	}
+
+	// Divide
+	odd := make([]complex128, n/2)
+	even := make([]complex128, n/2)
+	for i := range even {
+		even[i] = a[i*2]
+		odd[i] = a[i*2+1]
+	}
+
+	// Conquer
+	fft1D(even)
+	fft1D(odd)
+
+	// Combine
+	for k := 0; k < n/2; k++ {
+		t := cmplx.Exp(-2i*math.Pi*complex(float64(k)/float64(n), 0)) * odd[k]
+		a[k] = even[k] + t
+		a[k+n/2] = even[k] - t
+	}
+}
+
+// Perform 2D FFT
+func fft2D(input [][]float64) [][]complex128 {
 	height := len(input)
 	width := len(input[0])
 	output := make([][]complex128, height)
-	for u := range output {
-		output[u] = make([]complex128, width)
-	}
-
-	for u := 0; u < height; u++ {
-		for v := 0; v < width; v++ {
-			var sum complex128
-			for x := 0; x < height; x++ {
-				for y := 0; y < width; y++ {
-					angle := 2.0 * math.Pi * (float64(u*x)/float64(height) + float64(v*y)/float64(width))
-					sum += complex(input[x][y], 0) * cmplx.Exp(-1i*complex(angle, 0))
-				}
-			}
-			output[u][v] = sum
+	for i := range output {
+		output[i] = make([]complex128, width)
+		for j := range output[i] {
+			output[i][j] = complex(input[i][j], 0)
 		}
 	}
+
+	// Perform FFT on each row
+	for i := 0; i < height; i++ {
+		fft1D(output[i])
+	}
+
+	// Perform FFT on each column
+	column := make([]complex128, height)
+	for j := 0; j < width; j++ {
+		for i := 0; i < height; i++ {
+			column[i] = output[i][j]
+		}
+		fft1D(column)
+		for i := 0; i < height; i++ {
+			output[i][j] = column[i]
+		}
+	}
+
 	return output
 }
 
-// Perform the inverse 2D DFT
-func idft2D(input [][]complex128) [][]float64 {
+// Shift the zero-frequency component to the center of the spectrum
+func shiftDFT(input [][]complex128) [][]complex128 {
 	height := len(input)
 	width := len(input[0])
-	output := make([][]float64, height)
-	for x := range output {
-		output[x] = make([]float64, width)
+	output := make([][]complex128, height)
+	for i := range output {
+		output[i] = make([]complex128, width)
 	}
 
-	for x := 0; x < height; x++ {
-		for y := 0; y < width; y++ {
-			var sum complex128
-			for u := 0; u < height; u++ {
-				for v := 0; v < width; v++ {
-					angle := 2.0 * math.Pi * (float64(u*x)/float64(height) + float64(v*y)/float64(width))
-					sum += input[u][v] * cmplx.Exp(1i*complex(angle, 0))
-				}
-			}
-			output[x][y] = real(sum) / float64(height*width)
+	for u := 0; u < height; u++ {
+		for v := 0; v < width; v++ {
+			output[u][v] = input[(u+height/2)%height][(v+width/2)%width]
 		}
 	}
 	return output
 }
 
-// Apply a low-pass filter in the frequency domain
-func applyLowPassFilter(fft [][]complex128, cutoff float64) {
-	height := len(fft)
-	width := len(fft[0])
+// Compute the logarithmic spectrum for visualization
+func computeSpectrum(dftShifted [][]complex128, k float64) [][]float64 {
+	height := len(dftShifted)
+	width := len(dftShifted[0])
+	spectrum := make([][]float64, height)
+	for i := range spectrum {
+		spectrum[i] = make([]float64, width)
+	}
+
 	for u := 0; u < height; u++ {
 		for v := 0; v < width; v++ {
-			distance := math.Sqrt(math.Pow(float64(u-height/2), 2) + math.Pow(float64(v-width/2), 2))
-			if distance > cutoff {
-				fft[u][v] = 0
+			spectrum[u][v] = k * math.Log(1+cmplx.Abs(dftShifted[u][v]))
+		}
+	}
+	return spectrum
+}
+
+// Normalize the spectrum to the range [0, 255] for visualization
+func normalizeSpectrum(spectrum [][]float64) [][]float64 {
+	height := len(spectrum)
+	width := len(spectrum[0])
+	minVal := spectrum[0][0]
+	maxVal := spectrum[0][0]
+
+	// Find the min and max values
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if spectrum[y][x] < minVal {
+				minVal = spectrum[y][x]
+			}
+			if spectrum[y][x] > maxVal {
+				maxVal = spectrum[y][x]
 			}
 		}
 	}
+
+	// Normalize the spectrum
+	normalized := make([][]float64, height)
+	for y := 0; y < height; y++ {
+		normalized[y] = make([]float64, width)
+		for x := 0; x < width; x++ {
+			normalized[y][x] = 255 * (spectrum[y][x] - minVal) / (maxVal - minVal)
+		}
+	}
+	return normalized
 }
 
 // Convert 2D float array to grayscale image
@@ -480,18 +541,22 @@ func floatArrayToGrayImage(input [][]float64) *image.Gray {
 	}
 	return img
 }
+
+// Apply the Fourier Transform filter
 func apply_fourier_transform_filter(img image.Image) image.Image {
 	// Step 1: Convert to grayscale
 	grayImage := toGrayscale(img)
-	// Step 2: Perform 2D DFT
-	fftResult := dft2D(grayImage)
-	// Step 3: Apply a low-pass filter
-	cutoff := 30.0 // Adjust cutoff frequency as needed
-	applyLowPassFilter(fftResult, cutoff)
-	// Step 4: Perform inverse 2D DFT
-	filteredImageArray := idft2D(fftResult)
-	// Step 5: Convert back to image
-	filteredImage := floatArrayToGrayImage(filteredImageArray)
+	// Step 2: Perform 2D FFT
+	fftResult := fft2D(grayImage)
+	// Step 3: Shift the zero-frequency component to the center
+	fftShifted := shiftDFT(fftResult)
+	// Step 4: Compute the spectrum for visualization
+	spectrum := computeSpectrum(fftShifted, 20)
+	// Step 5: Normalize the spectrum
+	normalizedSpectrum := normalizeSpectrum(spectrum)
+	// Step 6: Convert the normalized spectrum to a grayscale image
+	filteredImage := floatArrayToGrayImage(normalizedSpectrum)
+
 	return filteredImage
 }
 func apply_interpolation_filter(img image.Image) image.Image {
