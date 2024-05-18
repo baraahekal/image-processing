@@ -344,27 +344,6 @@ func apply_histogram_equalization_filter(img image.Image) image.Image {
 	}
 	return equalized
 }
-func calculateHistogram(img image.Image) [256]uint64 {
-	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	histogram := [256]uint64{}
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			r, _, _, _ := img.At(x, y).RGBA()
-			pixelValue := int(r >> 8)
-			histogram[pixelValue]++
-		}
-	}
-	return histogram
-}
-func calculateCDF(histogram [256]uint64) [256]uint64 {
-	var cdf [256]uint64
-	cdf[0] = histogram[0]
-	for i := 1; i < 256; i++ {
-		cdf[i] = cdf[i-1] + histogram[i]
-	}
-	return cdf
-}
 func apply_histogram_specification_filter(img image.Image) image.Image {
 	templatePath := "asset/Sunset.jpeg"
 	templateImg, err := readImage(templatePath)
