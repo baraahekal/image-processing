@@ -269,6 +269,27 @@ func apply_histogram_equalization_filter(img image.Image) image.Image {
 	return equalizedImg
 }
 
+func apply_equalize_histogram_gray(img image.Image) image.Image {
+	histogram := calculate_grayscale_histogram(img)
+	bounds := img.Bounds()
+	totalPixels := float64((bounds.Max.X - bounds.Min.X) * (bounds.Max.Y - bounds.Min.Y))
+	var cdf [256]float64
+	cdf[0] = float64(histogram[0]) / totalPixels
+	for i := 1; i < 256; i++ {
+		cdf[i] = cdf[i-1] + float64(histogram[i])/totalPixels
+	}
+	equalizedImg := image.NewGray(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			grayColor := color.GrayModel.Convert(img.At(x, y)).(color.Gray)
+			intensity := grayColor.Y
+			newIntensity := uint8(math.Round(cdf[intensity] * 255))
+			equalizedImg.SetGray(x, y, color.Gray{Y: newIntensity})
+		}
+	}
+	return equalizedImg
+}
+
 func calculateHistogram2(img image.Image) ([]float64, []float64, []float64) {
 	histR := make([]float64, 256)
 	histG := make([]float64, 256)
@@ -438,6 +459,20 @@ func histMatch(cdfInput, cdfTemplate []float64, img image.Image) *image.Gray {
 	}
 
 	return newImg
+}
+
+func calculate_grayscale_histogram(img image.Image) [256]int {
+	var histogram [256]int
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			grayColor := color.GrayModel.Convert(img.At(x, y)).(color.Gray)
+			intensity := grayColor.Y
+			histogram[intensity]++
+		}
+	}
+
+	return histogram
 }
 
 func calculateHistogram(img image.Image) []float64 {

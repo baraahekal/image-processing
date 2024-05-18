@@ -93,7 +93,7 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 		case "1-0-0":
 			img = apply_histogram_equalization_filter(img)
 		case "1-0-1":
-			//img = apply_equalize_histogram_gray(img)
+			img = apply_equalize_histogram_gray(img)
 		case "1-1-0":
 			img = apply_histogram_specification_filter_color(img)
 		case "1-1-1":
