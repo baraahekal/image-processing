@@ -41,7 +41,7 @@ function Upload({ selectedFilter }) {
 
         // Reset the step
         if (step > 0) {
-            setStep(step - 1);
+            setStep(0);
         }
     };
     img.src = URL.createObjectURL(files.files[0]);
