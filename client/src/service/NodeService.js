@@ -48,8 +48,17 @@ export const NodeService = {
                 "icon": "pi pi-folder",
                 "label": "Transform Domain filters",
                 "children": [
-                    { "key": "1-0", "label": "Histogram Equalization", "icon": "pi pi-folder", },
-                    { "key": "1-1", "label": "Histogram Specification", "icon": "pi pi-folder", },
+                    { "key": "1-0", "label": "Histogram Equalization", "icon": "pi pi-folder",
+                    "children":[
+                        { "key": "1-0-0", "label": "Color", "icon": "pi pi-folder", },
+                        { "key": "1-0-1", "label": "Gray", "icon": "pi pi-folder", }
+                    ]
+                    },
+                    { "key": "1-1", "label": "Histogram Specification", "icon": "pi pi-folder",
+                        "children":[
+                            { "key": "1-1-0", "label": "Color", "icon": "pi pi-folder", },
+                            { "key": "1-1-1", "label": "Gray", "icon": "pi pi-folder", }
+                        ]},
                     { "key": "1-2", "label": "Fourier transform", "icon": "pi pi-folder", },
                     { "key": "1-3", "label": "Interpolation", "icon": "pi pi-folder",
                         "children": [
