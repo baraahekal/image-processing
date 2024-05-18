@@ -79,7 +79,7 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 		case "0-1-0":
 			img = apply_laplacian_filter(img)
 		case "0-1-1":
-			img = apply_unsharp_masking_filter(img)
+			img = apply_unsharp_mask_filter(img)
 		case "0-1-2":
 			img = apply_roberts_filter(img)
 		case "0-1-3":
@@ -90,14 +90,22 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 			img = apply_gaussian_noise_filter(img)
 		case "0-2-2":
 			img = apply_uniform_noise_filter(img)
-		case "1-0":
+		case "1-0-0":
 			img = apply_histogram_equalization_filter(img)
-		case "1-1":
+		case "1-0-1":
+			img = apply_equalize_histogram_gray(img)
+		case "1-1-0":
+			img = apply_averaging_filter(img) // editable
+		case "1-1-1":
 			img = apply_histogram_specification_filter(img)
 		case "1-2":
 			img = apply_fourier_transform_filter(img)
-		case "1-3":
-			img = apply_interpolation_filter(img)
+		case "1-3-0":
+			img = applyNearestNeighborFilter(img)
+		case "1-3-1":
+			img = applyBilinearFilter(img)
+		case "1-3-2":
+			img = applyBicubicFilter(img)
 		case "2-0":
 			img = apply_huffman_coding(img)
 

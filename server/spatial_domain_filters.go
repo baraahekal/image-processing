@@ -12,7 +12,6 @@ import (
 	"sort"
 )
 
-// TEST FUNCTION
 func apply_median_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
