@@ -234,7 +234,7 @@ func apply_laplacian_filter(img image.Image) image.Image {
 	return newImg
 }
 
-func apply_unsharp_mask_filter(img image.Image) image.Image {
+func apply_unsharp_masking_filter(img image.Image) image.Image {
 	// Convert the image to grayscale
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
