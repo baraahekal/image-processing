@@ -201,40 +201,42 @@ func apply_gaussian_filter(img image.Image) image.Image {
 func apply_laplacian_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
-	newImg := image.NewRGBA(bounds)
+	newImg := image.NewGray(bounds)
 	kernel := [][]float64{
-		{0, 1, 0},
-		{1, -4, 1},
-		{0, 1, 0},
+		{1, 1, 1},
+		{1, -8, 1},
+		{1, 1, 1},
 	}
-	//kernel := [][]float64{
-	//	{1, 1, 1},
-	//	{1, -8, 1},
-	//	{1, 1, 1},
-	//}
 	kernelHeight := len(kernel)
 	kernelWidth := len(kernel[0])
 	h := kernelHeight / 2
 	w := kernelWidth / 2
+	// Normalize the kernel
+	var sumKernel float64
+	for _, row := range kernel {
+		for _, val := range row {
+			sumKernel += val
+		}
+	}
 	for y := h; y < height-h; y++ {
 		for x := w; x < width-w; x++ {
-			var sumR, sumG, sumB, sumA float64
+			var sum float64
 			for ky := 0; ky < kernelHeight; ky++ {
 				for kx := 0; kx < kernelWidth; kx++ {
-					r, g, b, a := img.At(x+w-kx, y+h-ky).RGBA()
-					sumR += float64(r) * kernel[ky][kx]
-					sumG += float64(g) * kernel[ky][kx]
-					sumB += float64(b) * kernel[ky][kx]
-					sumA += float64(a) * kernel[ky][kx]
+					r, _, _, _ := img.At(x+w-kx, y+h-ky).RGBA()
+					sum += float64(r) * kernel[ky][kx]
 				}
 			}
-			newImg.Set(x, y, color.RGBA64{uint16(sumR), uint16(sumG), uint16(sumB), uint16(sumA)})
+			// Normalize and clamp the result
+			sum = sum / sumKernel
+			sum = clamp(sum, 0, 65535)
+			newImg.Set(x, y, color.Gray{Y: uint8(sum / 256)})
 		}
 	}
 	return newImg
 }
 
-func apply_unsharp_masking_filter(img image.Image) image.Image {
+func apply_unsharp_mask_filter(img image.Image) image.Image {
 	// Convert the image to grayscale
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
