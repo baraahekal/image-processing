@@ -218,6 +218,7 @@ func apply_laplacian_filter(img image.Image) image.Image {
 			sumKernel += val
 		}
 	}
+
 	for y := h; y < height-h; y++ {
 		for x := w; x < width-w; x++ {
 			var sum float64
@@ -332,40 +333,46 @@ func apply_sobel_filter(img image.Image) image.Image {
 	width, height := bounds.Max.X, bounds.Max.Y
 	newImg := image.NewRGBA(bounds)
 
-	//This is for sobel in X axis
-	kernel := [][]float64{
+	// Sobel kernels
+	kernelX := [][]float64{
 		{-1, 0, 1},
 		{-2, 0, 2},
 		{-1, 0, 1},
 	}
-	// For the Y axis
-	//kernel := [][]float64{
-	//	{-1, -2, -1},
-	//	{0, 0, 0},
-	//	{1, 2, 1},
-	//}
-
-	kernelHeight := len(kernel)
-	kernelWidth := len(kernel[0])
-	h := kernelHeight / 2
-	w := kernelWidth / 2
-	for y := h; y < height-h; y++ {
-		for x := w; x < width-w; x++ {
-			var sumR, sumG, sumB, sumA float64
-			for ky := 0; ky < kernelHeight; ky++ {
-				for kx := 0; kx < kernelWidth; kx++ {
-					r, g, b, a := img.At(x-w+kx, y-h+ky).RGBA()
-					sumR += float64(r) * kernel[ky][kx]
-					sumG += float64(g) * kernel[ky][kx]
-					sumB += float64(b) * kernel[ky][kx]
-					sumA += float64(a) * kernel[ky][kx]
-				}
-			}
-
-			newImg.Set(x, y, color.RGBA64{uint16(sumR), uint16(sumG), uint16(sumB), uint16(sumA)})
-		}
+	kernelY := [][]float64{
+		{-1, -2, -1},
+		{0, 0, 0},
+		{1, 2, 1},
 	}
 
+	for y := 1; y < height-1; y++ {
+		for x := 1; x < width-1; x++ {
+			// Apply Sobel operator
+			var sumXr, sumXg, sumXb, sumYr, sumYg, sumYb float64
+			for ky := -1; ky <= 1; ky++ {
+				for kx := -1; kx <= 1; kx++ {
+					px := img.At(x+kx, y+ky)
+					r, g, b, _ := px.RGBA()
+					sumXr += float64(r>>8) * kernelX[ky+1][kx+1]
+					sumXg += float64(g>>8) * kernelX[ky+1][kx+1]
+					sumXb += float64(b>>8) * kernelX[ky+1][kx+1]
+					sumYr += float64(r>>8) * kernelY[ky+1][kx+1]
+					sumYg += float64(g>>8) * kernelY[ky+1][kx+1]
+					sumYb += float64(b>>8) * kernelY[ky+1][kx+1]
+				}
+			}
+			// Calculate the magnitude of the gradient for each channel
+			gradR := math.Sqrt(sumXr*sumXr + sumYr*sumYr)
+			gradG := math.Sqrt(sumXg*sumXg + sumYg*sumYg)
+			gradB := math.Sqrt(sumXb*sumXb + sumYb*sumYb)
+			// Normalize to 0-255
+			gradR = math.Min(255, gradR)
+			gradG = math.Min(255, gradG)
+			gradB = math.Min(255, gradB)
+			// Set the resulting pixel
+			newImg.SetRGBA(x, y, color.RGBA{uint8(gradR), uint8(gradG), uint8(gradB), 255})
+		}
+	}
 	return newImg
 }
 
