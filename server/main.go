@@ -79,7 +79,7 @@ func imageHandler(w http.ResponseWriter, r *http.Request) {
 		case "0-1-0":
 			img = apply_laplacian_filter(img)
 		case "0-1-1":
-			img = apply_unsharp_masking_filter(img)
+			img = apply_unsharp_mask_filter(img)
 		case "0-1-2":
 			img = apply_roberts_filter(img)
 		case "0-1-3":
