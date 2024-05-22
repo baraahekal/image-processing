@@ -331,7 +331,7 @@ func apply_roberts_filter(img image.Image) image.Image {
 func apply_sobel_filter(img image.Image) image.Image {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
-	newImg := image.NewRGBA(bounds)
+	newImg := image.NewGray(bounds) // Change to grayscale
 
 	// Sobel kernels
 	kernelX := [][]float64{
@@ -347,30 +347,25 @@ func apply_sobel_filter(img image.Image) image.Image {
 
 	for y := 1; y < height-1; y++ {
 		for x := 1; x < width-1; x++ {
-			// Apply Sobel operator
-			var sumXr, sumXg, sumXb, sumYr, sumYg, sumYb float64
+			var sumX, sumY float64
 			for ky := -1; ky <= 1; ky++ {
 				for kx := -1; kx <= 1; kx++ {
 					px := img.At(x+kx, y+ky)
 					r, g, b, _ := px.RGBA()
-					sumXr += float64(r>>8) * kernelX[ky+1][kx+1]
-					sumXg += float64(g>>8) * kernelX[ky+1][kx+1]
-					sumXb += float64(b>>8) * kernelX[ky+1][kx+1]
-					sumYr += float64(r>>8) * kernelY[ky+1][kx+1]
-					sumYg += float64(g>>8) * kernelY[ky+1][kx+1]
-					sumYb += float64(b>>8) * kernelY[ky+1][kx+1]
+
+					// Calculate luminance from RGB components
+					luminance := 0.299*float64(r>>8) + 0.587*float64(g>>8) + 0.114*float64(b>>8)
+
+					sumX += luminance * kernelX[ky+1][kx+1]
+					sumY += luminance * kernelY[ky+1][kx+1]
 				}
 			}
-			// Calculate the magnitude of the gradient for each channel
-			gradR := math.Sqrt(sumXr*sumXr + sumYr*sumYr)
-			gradG := math.Sqrt(sumXg*sumXg + sumYg*sumYg)
-			gradB := math.Sqrt(sumXb*sumXb + sumYb*sumYb)
-			// Normalize to 0-255
-			gradR = math.Min(255, gradR)
-			gradG = math.Min(255, gradG)
-			gradB = math.Min(255, gradB)
+			grad := math.Sqrt(sumX*sumX + sumY*sumY)
+			grad = math.Min(255, grad)
+			gray := uint8(grad)
+
 			// Set the resulting pixel
-			newImg.SetRGBA(x, y, color.RGBA{uint8(gradR), uint8(gradG), uint8(gradB), 255})
+			newImg.SetGray(x, y, color.Gray{Y: gray})
 		}
 	}
 	return newImg
